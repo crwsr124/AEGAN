@@ -1,4 +1,9 @@
-import torch.utils.data as data
+# import torch.utils.data as data
+# Dataset = data.Dataset
+from paddle.io import Dataset
+from paddle.vision import transforms
+from paddle.io import DataLoader
+import itertools
 
 from PIL import Image
 
@@ -38,7 +43,7 @@ def make_dataset(dir, extensions):
     return images
 
 
-class DatasetFolder(data.Dataset):
+class DatasetFolder(Dataset):
     def __init__(self, root, loader, extensions, transform=None, target_transform=None):
         # classes, class_to_idx = find_classes(root)
         samples = make_dataset(root, extensions)
@@ -106,3 +111,22 @@ class ImageFolder(DatasetFolder):
                                           transform=transform,
                                           target_transform=target_transform)
         self.imgs = self.samples
+
+
+if __name__ == "__main__":
+    image_path_set = make_dataset("../data/data110820", IMG_EXTENSIONS)
+    print(len(image_path_set))
+    print(image_path_set[0])
+
+    train_transform = transforms.Compose([
+        transforms.RandomHorizontalFlip(),
+        transforms.Resize((256 + 20, 256+20)),
+        transforms.RandomCrop(256),
+        transforms.ToTensor(),
+        transforms.Normalize(mean=(0.5, 0.5, 0.5), std=(0.5, 0.5, 0.5))
+    ])
+    train_folder = ImageFolder("../data/data110820", train_transform)
+    train_loader = DataLoader(train_folder, batch_size=8, shuffle=True, drop_last=True, num_workers=2)
+    data_iter = iter(train_loader)
+    real_sample  = next(data_iter)[0]
+    print(real_sample.shape)
