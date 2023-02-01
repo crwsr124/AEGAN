@@ -13,10 +13,12 @@ def Standardization(x):
     std = x.std(1, keepdim=True)
     return (x - mean)/(std+1e-8)
 
+# def RpGANLoss_d(fake_logit, real_logit):
+#     ones = torch.ones_like(real_logit)
+#     loss = bce_logits_loss(real_logit - fake_logit, ones)
+#     return loss
 def RpGANLoss_d(fake_logit, real_logit):
-    ones = torch.ones_like(real_logit)
-    loss = bce_logits_loss(real_logit - fake_logit, ones)
-    return loss #+ 0.5*F.relu((real_logit-fake_logit)).mean()
+    return (F.relu(1 + (fake_logit - real_logit))).mean() #+ real_logit.abs().mean()
 
 def FocalRpGANLoss_d(fake_logit, real_logit):
     kkkk = 1.-F.relu((F.sigmoid((real_logit - fake_logit).detach())-0.5))*2.
@@ -24,10 +26,12 @@ def FocalRpGANLoss_d(fake_logit, real_logit):
     loss = kkkk**4 * torch.nn.BCEWithLogitsLoss(reduction='none')(real_logit - fake_logit, ones)
     return loss.mean()
 
+# def RpGANLoss_g(fake_logit, real_logit):
+#     ones = torch.ones_like(real_logit)
+#     loss = bce_logits_loss(fake_logit - real_logit, ones)
+#     return loss
 def RpGANLoss_g(fake_logit, real_logit):
-    ones = torch.ones_like(real_logit)
-    loss = bce_logits_loss(fake_logit - real_logit, ones)
-    return loss
+    return (F.relu(1 + (real_logit - fake_logit))).mean()
 
 def RaGANLoss_d(fake_logit, real_logit):
     ones = torch.ones_like(real_logit)

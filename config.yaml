@@ -14,7 +14,7 @@ BaseModel:
   obj_size: 224
   img_size: 224
   checkpoint_path: ./pretrained/
-  auto_resume: True
+  auto_resume: False
 
 Enc:
   local_size: 32

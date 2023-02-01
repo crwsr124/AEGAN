@@ -102,6 +102,7 @@ class Trainer:
         fake_feature = self.encoder(fake_sample.detach())
         recon_real = self.decoder(Standardization(real_feature))
         recon_feature = self.encoder(recon_real.detach())
+        # recon_feature = self.encoder(self.decoder(Standardization(real_feature.detach())))
         recon_ff = Standardization(self.encoder(fake_sample))
 
         # real_logit = real_feature.norm(2,1)/512.
@@ -114,13 +115,22 @@ class Trainer:
             print("real_logit", real_logit)
             print("fake_logit", fake_logit)
 
-        recon_loss = 10.* mse_loss(recon_real, real_sample.detach())+ 10.* mse_loss(recon_ff, random_gauss)
-        center_loss = (real_feature.mean(1) - real_feature[torch.randperm(real_feature.shape[0])].mean(1)).abs().mean() + (fake_feature.mean(1) - fake_feature[torch.randperm(fake_feature.shape[0])].mean(1)).abs().mean()
+        # recon_loss = 10.* mse_loss(recon_real, real_sample.detach())+ 10.* mse_loss(recon_ff, random_gauss)+ 10.* mse_loss(Standardization(real_feature.detach()), Standardization(self.encoder(self.decoder(Standardization(real_feature.detach())))))
+        recon_loss = 10.* mse_loss(recon_ff, random_gauss) + 0.1*(real_logit+fake_logit).abs().mean()
+        #recon_loss = 10.* mse_loss(recon_ff, random_gauss)+10.* mse_loss(recon_real, real_sample.detach()) #+ (real_logit+fake_logit).abs().mean() #+ (real_logit+recon_logit).abs().mean()#+ 1.* mse_loss(recon_logit, fake_logit.mean())
+
+        center_loss = (real_feature.mean(1) - real_feature[torch.randperm(real_feature.shape[0])].mean(1)).abs().mean() + (fake_feature.mean(1) - fake_feature[torch.randperm(fake_feature.shape[0])].mean(1)).abs().mean() #+ (fake_feature.mean(1) - recon_feature.mean(1)).abs().mean() + (fake_feature.std(1) - recon_feature.std(1)).abs().mean()
+
         std_loss = real_feature.std(1).mean() #+ real_feature.std(1).mean()
+        randp = torch.randperm(recon_logit.shape[0])
 
-        adv_loss1 = RpGANLoss_d(fake_logit, real_logit) + RpGANLoss_d(recon_logit, real_logit)
+        adv_loss1 = RpGANLoss_d(fake_logit, real_logit)
+        # adv_loss1 = RpGANLoss_d(recon_logit[randp], real_logit)+RpGANLoss_d(fake_logit, real_logit)
+        # adv_loss1 = RpGANLoss_d(fake_logit, real_logit) + RpGANLoss_d(fake_logit, recon_logit) + RpGANLoss_d(recon_logit, real_logit)
+        # adv_loss1 = RpGANLoss_d(fake_logit, real_logit) + RpGANLoss_d(recon_logit, fake_logit) + RpGANLoss_d(recon_logit, real_logit)
+        # adv_loss1 = RpGANLoss_d(recon_logit, real_logit) + RpGANLoss_d(fake_logit, recon_logit) + RpGANLoss_d(recon_logit, real_logit)
 
-        step1_loss = adv_loss1 + recon_loss #+ 0.1*center_loss + 0.1*std_loss
+        step1_loss = adv_loss1 + recon_loss #+ 0.1*center_loss #+ 0.1*std_loss
 
         # if self.inner_iter % 4 == 0:
         #     grad_real, = torch.grad(outputs=real_logit.sum(), inputs=real_sample,retain_graph=True, create_graph=True)
@@ -152,10 +162,18 @@ class Trainer:
         fake_logit = fake_feature.mean(1)
         recon_logit = recon_feature.mean(1)
 
-        recon_loss = 10.* mse_loss(recon_real, real_sample.detach()) + 10.* mse_loss(recon_ff, random_gauss)
+        # recon_loss = 10.* mse_loss(recon_real, real_sample.detach()) + 10.* mse_loss(recon_ff, random_gauss)+ 10.* mse_loss(Standardization(real_feature.detach()), Standardization(self.encoder(recon_real)))
+        recon_loss = 10.* mse_loss(recon_ff, random_gauss)
+        #recon_loss = 10.* mse_loss(recon_ff, random_gauss) + 10.* mse_loss(recon_real, real_sample.detach()) #+ 1.* mse_loss(recon_logit, fake_logit.mean())
+        center_loss = (fake_feature.mean(1) - fake_feature[torch.randperm(fake_feature.shape[0])].mean(1)).abs().mean() + (fake_feature.mean(1) - recon_feature.mean(1)).abs().mean()
 
-        adv_loss2 = RpGANLoss_g(fake_logit, real_logit) + RpGANLoss_g(recon_logit, real_logit)
-        step2_loss = adv_loss2 + recon_loss#+ 1.* recon_loss #+ f2_loss#+ 10*f2_loss #+ recon_loss
+        adv_loss2 =  RpGANLoss_g(fake_logit, real_logit)
+        #adv_loss2 =  RpGANLoss_g(recon_logit[randp], real_logit)+RpGANLoss_g(fake_logit, real_logit)
+        # adv_loss2 = RpGANLoss_g(fake_logit, real_logit) + RpGANLoss_g(recon_logit, fake_logit)+ RpGANLoss_g(recon_logit, real_logit)
+        # adv_loss2 = RpGANLoss_g(fake_logit, recon_logit) + RpGANLoss_g(recon_logit, real_logit) + RpGANLoss_g(fake_logit, real_logit)
+        # adv_loss2 = RpGANLoss_g(recon_logit, fake_logit) + RpGANLoss_g(fake_logit, real_logit) + RpGANLoss_g(recon_logit, real_logit)
+
+        step2_loss = adv_loss2 + recon_loss #+ 1.* recon_loss #+ f2_loss#+ 10*f2_loss #+ recon_loss
 
         self.G_optim.zero_grad()
         step2_loss.backward()
@@ -180,9 +198,9 @@ class Trainer:
         if self.real_slide_window.shape[0] == 4000:
             rrrr = self.real_slide_window.sum()/4000.
             ffff = self.fake_slide_window.sum()/4000.
-            # if self.inner_iter%100==0 and (rrrr-ffff)/2.0 > 0.6:
+            # if self.inner_iter%100==0 and (rrrr-ffff)/2.0 > 0.8:
             #     self.fake_rate = self.fake_rate + 0.01
-            # if self.inner_iter%100==0 and (rrrr-ffff)/2.0 < 0.6:
+            # if self.inner_iter%100==0 and (rrrr-ffff)/2.0 < 0.8:
             #     self.fake_rate = self.fake_rate - 0.01
             # if self.fake_rate < 0.01:
             #     self.fake_rate = 0.01
@@ -242,7 +260,7 @@ class Trainer:
         os.makedirs('./result', exist_ok=True)
         save_image(test_result, os.path.join('./result', 'step_%04d_%05d.png' % (self.epoch, self.inner_iter)))
 
-        plt.figure("figure", dpi=80)
+        plt.figure("figure", figsize=(10, 6))#, dpi=160
         plt.gca().set_aspect(1)
         plt.subplot(2,3,1), plt.title('real')
         plt.gca().set_aspect(1)
