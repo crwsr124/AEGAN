@@ -291,7 +291,7 @@ class Encoder(nn.Module):
         # feature_norm = (feature-mean)/(std+1e-12)
         # feature = feature_s #+ torch.randn_like(feature_s).to(device)
 
-        return 0.01*feature
+        return 0.1*feature
         # return 0.1*feature
 
 if __name__ == "__main__":

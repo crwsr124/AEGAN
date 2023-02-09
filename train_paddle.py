@@ -95,6 +95,7 @@ class Trainer:
         real_sample.stop_gradient = False
 
         random_gauss = torch.randn([real_sample.shape[0], 512])
+        random_gauss_latent = torch.randn([real_sample.shape[0], 512])
         fake_sample = self.decoder(random_gauss)
         
         # train D
@@ -111,26 +112,46 @@ class Trainer:
         fake_logit = fake_feature.mean(1)
         recon_logit = recon_feature.mean(1)
 
+        #dddd = (fake_sample.detach()-real_sample).view([real_sample.shape[0], -1]).norm(2,1)
+        dddd = (fake_sample.detach()-real_sample).view([real_sample.shape[0], -1]).abs().mean(1)
+        # qp_loss = (0.25*(real_logit-fake_logit)**2/dddd).mean()
+
+        # dddd = 10*(real_logit-fake_logit).abs()
+        # mmm = torch.exp(real_logit-fake_logit) - torch.exp(fake_logit-real_logit)
+        mmm = real_logit-fake_logit
+        # qp_loss = (10.0*(mmm)**2/dddd).mean()
+        qp_loss = (0.02*(mmm)**2/dddd).mean()
+
+        
+
+        latent_real_logit = self.feature_discriminator(random_gauss_latent)
+        latent_fake_logit = self.feature_discriminator(Standardization(real_feature))
+
         if self.inner_iter % 200 == 0:
             print("real_logit", real_logit)
             print("fake_logit", fake_logit)
+            print("dddd", dddd)
+            print("mmm", mmm)
 
         # recon_loss = 10.* mse_loss(recon_real, real_sample.detach())+ 10.* mse_loss(recon_ff, random_gauss)+ 10.* mse_loss(Standardization(real_feature.detach()), Standardization(self.encoder(self.decoder(Standardization(real_feature.detach())))))
-        recon_loss = 10.* mse_loss(recon_ff, random_gauss) + 0.1*(real_logit+fake_logit).abs().mean()
-        #recon_loss = 10.* mse_loss(recon_ff, random_gauss)+10.* mse_loss(recon_real, real_sample.detach()) #+ (real_logit+fake_logit).abs().mean() #+ (real_logit+recon_logit).abs().mean()#+ 1.* mse_loss(recon_logit, fake_logit.mean())
+        #recon_loss = 10.* mse_loss(recon_ff, random_gauss) #+ 0.1*(real_logit+fake_logit).abs().mean()
+        recon_loss = 10.* mse_loss(recon_ff, random_gauss)+10.* mse_loss(recon_real, real_sample.detach()) #+0.1*real_logit.abs().mean()#+ (real_logit+fake_logit).abs().mean() #+ (real_logit+recon_logit).abs().mean()#+ 1.* mse_loss(recon_logit, fake_logit.mean())
 
         center_loss = (real_feature.mean(1) - real_feature[torch.randperm(real_feature.shape[0])].mean(1)).abs().mean() + (fake_feature.mean(1) - fake_feature[torch.randperm(fake_feature.shape[0])].mean(1)).abs().mean() #+ (fake_feature.mean(1) - recon_feature.mean(1)).abs().mean() + (fake_feature.std(1) - recon_feature.std(1)).abs().mean()
 
         std_loss = real_feature.std(1).mean() #+ real_feature.std(1).mean()
         randp = torch.randperm(recon_logit.shape[0])
 
-        adv_loss1 = RpGANLoss_d(fake_logit, real_logit)
-        # adv_loss1 = RpGANLoss_d(recon_logit[randp], real_logit)+RpGANLoss_d(fake_logit, real_logit)
+        adv_loss1 = -mmm.mean() + qp_loss
+        #adv_loss1 = RpGANLoss_d(fake_logit, real_logit) #+ qp_loss #+ 0.5*RpGANLoss_d(recon_logit[randp], real_logit)
+        # adv_loss1 = RpGANLoss_d(fake_logit, recon_logit[randp])+RpGANLoss_d(fake_logit, real_logit)
         # adv_loss1 = RpGANLoss_d(fake_logit, real_logit) + RpGANLoss_d(fake_logit, recon_logit) + RpGANLoss_d(recon_logit, real_logit)
         # adv_loss1 = RpGANLoss_d(fake_logit, real_logit) + RpGANLoss_d(recon_logit, fake_logit) + RpGANLoss_d(recon_logit, real_logit)
         # adv_loss1 = RpGANLoss_d(recon_logit, real_logit) + RpGANLoss_d(fake_logit, recon_logit) + RpGANLoss_d(recon_logit, real_logit)
 
-        step1_loss = adv_loss1 + recon_loss #+ 0.1*center_loss #+ 0.1*std_loss
+        adv_loss_latent = RpGANLoss_g(latent_fake_logit, latent_real_logit)
+
+        step1_loss = adv_loss1 #+ adv_loss_latent #+ recon_loss #+ 0.5*adv_loss_latent#+ 0.1*center_loss #+ 0.1*std_loss
 
         # if self.inner_iter % 4 == 0:
         #     grad_real, = torch.grad(outputs=real_logit.sum(), inputs=real_sample,retain_graph=True, create_graph=True)
@@ -156,6 +177,9 @@ class Trainer:
         recon_real = self.decoder(Standardization(real_feature))
         recon_feature = self.encoder(recon_real)
 
+        latent_real_logit = self.feature_discriminator(random_gauss_latent)
+        latent_fake_logit = self.feature_discriminator(Standardization(real_feature))
+
         # real_logit = real_feature.norm(2,1)/512.
         # fake_logit = fake_feature.norm(2,1)/512.
         real_logit = real_feature.mean(1)
@@ -163,17 +187,25 @@ class Trainer:
         recon_logit = recon_feature.mean(1)
 
         # recon_loss = 10.* mse_loss(recon_real, real_sample.detach()) + 10.* mse_loss(recon_ff, random_gauss)+ 10.* mse_loss(Standardization(real_feature.detach()), Standardization(self.encoder(recon_real)))
-        recon_loss = 10.* mse_loss(recon_ff, random_gauss)
-        #recon_loss = 10.* mse_loss(recon_ff, random_gauss) + 10.* mse_loss(recon_real, real_sample.detach()) #+ 1.* mse_loss(recon_logit, fake_logit.mean())
+        # recon_loss = 10.* mse_loss(recon_ff, random_gauss)
+        recon_loss = 10.* mse_loss(recon_ff, random_gauss) + 10.* mse_loss(recon_real, real_sample.detach()) #+ 1.* mse_loss(recon_logit, fake_logit.mean())
         center_loss = (fake_feature.mean(1) - fake_feature[torch.randperm(fake_feature.shape[0])].mean(1)).abs().mean() + (fake_feature.mean(1) - recon_feature.mean(1)).abs().mean()
 
-        adv_loss2 =  RpGANLoss_g(fake_logit, real_logit)
-        #adv_loss2 =  RpGANLoss_g(recon_logit[randp], real_logit)+RpGANLoss_g(fake_logit, real_logit)
+        dddd = (fake_sample-real_sample).view([real_sample.shape[0], -1]).abs().mean(1)
+        # mmm = torch.exp(real_logit-fake_logit) - torch.exp(fake_logit-real_logit)
+        mmm = real_logit-fake_logit
+        # qp_loss = (0.25*(mmm)**2/dddd).mean()
+        qp_loss = (0.02*(mmm)**2/dddd).mean()
+        adv_loss2 =  mmm.mean() - qp_loss
+        #adv_loss2 =  RpGANLoss_g(fake_logit, real_logit) #+ 0.5*RpGANLoss_g(recon_logit[randp], real_logit)+0.5*RpGANLoss_g(fake_logit, recon_logit[randp])
+
         # adv_loss2 = RpGANLoss_g(fake_logit, real_logit) + RpGANLoss_g(recon_logit, fake_logit)+ RpGANLoss_g(recon_logit, real_logit)
         # adv_loss2 = RpGANLoss_g(fake_logit, recon_logit) + RpGANLoss_g(recon_logit, real_logit) + RpGANLoss_g(fake_logit, real_logit)
         # adv_loss2 = RpGANLoss_g(recon_logit, fake_logit) + RpGANLoss_g(fake_logit, real_logit) + RpGANLoss_g(recon_logit, real_logit)
 
-        step2_loss = adv_loss2 + recon_loss #+ 1.* recon_loss #+ f2_loss#+ 10*f2_loss #+ recon_loss
+        adv_loss_latent = RpGANLoss_d(latent_fake_logit, latent_real_logit)
+
+        step2_loss = adv_loss2 #+ adv_loss_latent#+ recon_loss #+ 0.5*adv_loss_latent#+ 1.* recon_loss #+ f2_loss#+ 10*f2_loss #+ recon_loss
 
         self.G_optim.zero_grad()
         step2_loss.backward()

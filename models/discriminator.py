@@ -13,8 +13,8 @@ class LinearLayer(nn.Module):
             # self.bias = nn.Parameter( torch.randn(outc) )
 
         if weight_norm:
-            # self.linear = nn.utils.spectral_norm(nn.Linear(inc, outc))
-            self.linear = nn.utils.weight_norm(nn.Linear(inc, outc), dim=None)
+            self.linear = nn.utils.spectral_norm(nn.Linear(inc, outc))
+            # self.linear = nn.utils.weight_norm(nn.Linear(inc, outc), dim=None)
         else:
             self.linear = nn.Linear(inc, outc)
         # nn.init.kaiming_normal_(self.linear.weight, nonlinearity="leaky_relu")
@@ -91,7 +91,7 @@ class BatchDiscriminator(nn.Module):
         # logit = torch.cat([union_logit, single_logit], dim=1)
         logit = torch.concat([union_logit, single_logit], 1)
         
-        return logit
+        return union_logit
 
 if __name__ == "__main__":
     net = BatchDiscriminator(512)

@@ -4,6 +4,7 @@ from config import load_cfg_from_cfg_file, merge_cfg_from_list
 import time, itertools, os
 import sys
 sys.path.append("models")
+sys.path.append("stylegan2")
 from models.dcgan_decoder import DCGenerator
 from models.encoder import Encoder
 from models.generator import Generator
@@ -14,6 +15,8 @@ from paddle.io import DataLoader
 from paddle.vision import transforms
 from models.paddle2torch import *
 from train_paddle import Trainer
+
+from stylegan2.generator import Generator as Generator2
 
 # paddle.device.set_device('gpu:0')
 
@@ -42,11 +45,13 @@ def main():
         transforms.Normalize(mean=(0.5, 0.5, 0.5), std=(0.5, 0.5, 0.5))
     ])
     train_folder = ImageFolder(args.data_root, train_transform)
-    train_loader = DataLoader(train_folder, batch_size=args.batch_size, shuffle=True, drop_last=True, num_workers=2)
+    train_loader = DataLoader(train_folder, batch_size=args.batch_size, shuffle=True, drop_last=True, num_workers=8)
     print("one_epoch_iters:", len(train_loader))
 
     encoder = Encoder(512)
     decoder = DCGenerator(512, [512, 256, 128, 64, 64, 64], 3)
+    # decoder = Generator2(256, 512, 8)
+
     img_discriminator = BatchDiscriminator(512)
     feature_generator = Generator(128, 512)
     feature_discriminator = BatchDiscriminator(512)
